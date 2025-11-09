@@ -5,92 +5,208 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Countdown Calendar</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome CDN for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512‑..." crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+    /* For UK date style emphasised */
+    .date-label { font‑size: 0.875rem; color: #aaa; }
+    .checked { text-decoration: line-through; opacity: 0.6; }
+    /* Simple confetti effect */
+    @keyframes fall {
+      0% { transform: translateY(‑100px) rotate(0deg); opacity:1; }
+      100% { transform: translateY(300px) rotate(360deg); opacity:0; }
+    }
+    .confetti {
+      position: absolute;
+      pointer‑events: none;
+      width: 8px;
+      height: 8px;
+      background: var(--c);
+      top: 0;
+      animation: fall 3s ease‑out forwards;
+    }
+  </style>
 </head>
 <body class="bg-gray-900 text-gray-100 font-sans">
-
   <div class="max-w-5xl mx-auto p-6">
-    <h1 class="text-3xl font-bold mb-6 text-center text-yellow-400">🎉 Countdown Calendar</h1>
+    <h1 class="text-4xl font-bold mb-4 text-center text-yellow-400">🗓️ Countdown Calendar</h1>
+
+    <div class="text-center mb-4">
+      <span id="days‑until" class="text-2xl"></span>
+    </div>
 
     <!-- Tabs -->
     <div class="flex justify-center mb-6 space-x-4">
-      <button id="nov-tab" class="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors">November</button>
-      <button id="dec-tab" class="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors">December</button>
+      <button id="tab‑nov" class="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors">November</button>
+      <button id="tab‑dec" class="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors">December</button>
     </div>
 
-    <!-- Calendar -->
+    <!-- Streak tracker -->
+    <div class="mb-4 text-center">
+      <span class="text-lg">✅ Streak: <span id="streak-count">0</span> days</span>
+    </div>
+
+    <!-- Calendar grid -->
     <div id="calendar" class="grid grid-cols-7 gap-4"></div>
+
+    <!-- Notes section -->
+    <div class="mt-8">
+      <h2 class="text-2xl font-semibold mb-2"><i class="fa-solid fa‑note‑sticky"></i> Notes</h2>
+      <textarea id="day-note" rows="4" class="w-full p-3 bg-gray-800 border border-gray-700 rounded text-gray-200" placeholder="Select a day to add a note…"></textarea>
+      <button id="save-note" class="mt-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 rounded text-gray-900">Save Note</button>
+    </div>
   </div>
 
   <script>
-    // Special days
+    // CONFIG
     const specialDays = {
-      "11-17": "Birthday 🥳",
-      "12-19": "No School!! 🥳",
-      "12-25": "Christmas 🎅",
-      "12-26": "Boxing Day 🎁"
+      "17‑11": { label: "Birthday", colour: "purple" },
+      "19‑12": { label: "No School", colour: "green" },
+      "25‑12": { label: "Christmas", colour: "red" },
+      "26‑12": { label: "Boxing Day", colour: "red" }
     };
 
     const months = {
-      nov: { month: 10, days: 30 }, // JS months 0-indexed
-      dec: { month: 11, days: 31 }
+      nov: { monthIndex: 10, days: 30 },
+      dec: { monthIndex: 11, days: 31 }
     };
 
     const today = new Date();
-    const calendar = document.getElementById("calendar");
+    const storageKey = "calendarState";
+    let state = JSON.parse(localStorage.getItem(storageKey) || "{}");
+    // state structure: { checked: { "11‑17": true, ... }, notes: { "11‑17": "…", ... } }
 
-    let currentMonth = "nov"; // default tab
+    let currentTab = "dec";
 
-    function renderCalendar(monthKey) {
-      calendar.innerHTML = ""; // clear
+    const calendarEl = document.getElementById("calendar");
+    const streakEl = document.getElementById("streak-count");
+    const daysUntilEl = document.getElementById("days‑until");
+    const noteTextarea = document.getElementById("day-note");
+    const saveNoteBtn = document.getElementById("save-note");
 
-      const { month, days } = months[monthKey];
+    let selectedDateKey = null;
 
-      for (let day = 1; day <= days; day++) {
-        const dayDiv = document.createElement("div");
-        const dateStr = `${String(month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    // Utility functions
+    function zeroPad(n){ return String(n).padStart(2,'0'); }
+    function dateKey(dm){ return dm; } // already in dd‑mm
 
-        dayDiv.className = "day border rounded-lg p-4 flex flex-col items-center justify-center transition-all duration-300 hover:scale-105 cursor-pointer relative bg-gray-800 border-gray-700";
-        dayDiv.innerHTML = `
-          <span class="text-lg font-semibold">${day}</span>
-          <span class="text-sm mt-1">${dateStr}</span>
+    function updateDaysUntil(){
+      const christmas = new Date(today.getFullYear(), 11, 25); // Month=11 is December
+      if(today > christmas){
+        christmas.setFullYear(christmas.getFullYear()+1);
+      }
+      const diff = Math.ceil((christmas - today)/(1000*60*60*24));
+      daysUntilEl.textContent = `${diff} days until Christmas 🎄`;
+    }
+
+    function renderCalendar(tab){
+      calendarEl.innerHTML = "";
+      const { monthIndex, days } = months[tab];
+      for(let d=1; d<=days; d++){
+        const key = `${zeroPad(d)}‑${zeroPad(monthIndex+1)}`; // UK style
+        const cell = document.createElement("div");
+        cell.className = "day border rounded-lg p-4 flex flex-col items-center justify-center transition-all duration-300 hover:scale-105 cursor-pointer relative bg-gray-800 border-gray-700";
+
+        // If past day
+        const cellDate = new Date(today.getFullYear(), monthIndex, d);
+        if(cellDate < new Date(today.getFullYear(), today.getMonth(), today.getDate())){
+          cell.classList.add("opacity-50");
+        }
+
+        // If checked
+        if(state.checked && state.checked[key]){
+          cell.classList.add("bg-green-600", "checked");
+        }
+
+        cell.innerHTML = `
+          <span class="text-lg font-semibold">${d}</span>
+          <span class="date-label mt-1">${key}</span>
         `;
 
-        // Highlight today
-        if (today.getMonth() === month && today.getDate() === day) {
-          dayDiv.classList.add("bg-yellow-600", "border-yellow-400");
-        }
-
-        // Highlight special days
-        if (specialDays[dateStr]) {
+        // Special day badge
+        if(specialDays[key]){
           const badge = document.createElement("span");
-          badge.className = "absolute top-1 right-1 bg-red-500 text-white text-xs px-1 rounded";
-          badge.textContent = specialDays[dateStr];
-          dayDiv.appendChild(badge);
+          badge.className = `absolute top-1 right-1 text-xs px-1 rounded text-white bg-${specialDays[key].colour}-500`;
+          badge.textContent = specialDays[key].label;
+          cell.appendChild(badge);
         }
 
-        // Check off on click
-        dayDiv.addEventListener("click", () => {
-          dayDiv.classList.toggle("bg-green-600");
-          dayDiv.classList.toggle("line-through");
+        cell.addEventListener("click", () => {
+          // toggle check
+          state.checked = state.checked || {};
+          state.checked[key] = !state.checked[key];
+          localStorage.setItem(storageKey, JSON.stringify(state));
+          renderCalendar(tab);
+          updateStreak();
+          if(specialDays[key] && state.checked[key]){
+            launchConfetti(cell);
+          }
         });
 
-        calendar.appendChild(dayDiv);
+        // Select day for notes
+        cell.addEventListener("dblclick", () => {
+          selectedDateKey = key;
+          noteTextarea.value = (state.notes && state.notes[key]) || "";
+          noteTextarea.placeholder = `Note for ${key}`;
+          noteTextarea.focus();
+        });
+
+        calendarEl.appendChild(cell);
       }
     }
 
-    // Initial render
-    renderCalendar(currentMonth);
+    function updateStreak(){
+      let streak = 0;
+      const todayKey = zeroPad(today.getDate()) + "‑" + zeroPad(today.getMonth()+1);
+      // count backwards from today that are checked
+      let d = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      while(true){
+        const key = zeroPad(d.getDate()) + "‑" + zeroPad(d.getMonth()+1);
+        if(state.checked && state.checked[key]){
+          streak++;
+        } else {
+          break;
+        }
+        d.setDate(d.getDate()-1);
+        if(d.getMonth() !== today.getMonth()) break;
+      }
+      streakEl.textContent = streak;
+    }
 
-    // Tab buttons
-    document.getElementById("nov-tab").addEventListener("click", () => {
-      currentMonth = "nov";
-      renderCalendar(currentMonth);
+    function launchConfetti(container){
+      for(let i=0; i<30; i++){
+        const conf = document.createElement("div");
+        conf.className = "confetti";
+        conf.style.setProperty("--c", `hsl(${Math.random()*360}, 70%, 50%)`);
+        conf.style.left = `${Math.random()*100}%`;
+        container.appendChild(conf);
+        setTimeout(()=> conf.remove(), 3000);
+      }
+    }
+
+    // Notes save
+    saveNoteBtn.addEventListener("click", () => {
+      if(!selectedDateKey) return alert("Select a day (double‑click) to add a note.");
+      state.notes = state.notes || {};
+      state.notes[selectedDateKey] = noteTextarea.value;
+      localStorage.setItem(storageKey, JSON.stringify(state));
+      alert("Note saved.");
     });
-    document.getElementById("dec-tab").addEventListener("click", () => {
-      currentMonth = "dec";
-      renderCalendar(currentMonth);
+
+    // Tab switching
+    document.getElementById("tab‑nov").addEventListener("click", () => {
+      currentTab = "nov";
+      renderCalendar(currentTab);
     });
+    document.getElementById("tab‑dec").addEventListener("click", () => {
+      currentTab = "dec";
+      renderCalendar(currentTab);
+    });
+
+    // Initial run
+    updateDaysUntil();
+    renderCalendar(currentTab);
+    updateStreak();
   </script>
-
 </body>
 </html>
