@@ -6,62 +6,90 @@
   <title>Countdown Calendar</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 font-sans">
+<body class="bg-gray-900 text-gray-100 font-sans">
 
-  <div class="max-w-4xl mx-auto p-6">
-    <h1 class="text-3xl font-bold mb-6 text-center">🎄 Countdown Calendar</h1>
+  <div class="max-w-5xl mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-6 text-center text-yellow-400">🎉 Countdown Calendar</h1>
 
-    <div id="calendar" class="grid grid-cols-7 gap-4">
-      <!-- Days will be injected by JS -->
+    <!-- Tabs -->
+    <div class="flex justify-center mb-6 space-x-4">
+      <button id="nov-tab" class="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors">November</button>
+      <button id="dec-tab" class="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors">December</button>
     </div>
+
+    <!-- Calendar -->
+    <div id="calendar" class="grid grid-cols-7 gap-4"></div>
   </div>
 
   <script>
-    // CONFIG: special days (MM-DD)
+    // Special days
     const specialDays = {
-      "12-25": "Christmas 🎅",
-      "12-26": "Boxing Day 🎁",
       "11-17": "Birthday 🥳",
       "12-19": "No School!! 🥳",
-};
+      "12-25": "Christmas 🎅",
+      "12-26": "Boxing Day 🎁"
+    };
+
+    const months = {
+      nov: { month: 10, days: 30 }, // JS months 0-indexed
+      dec: { month: 11, days: 31 }
+    };
 
     const today = new Date();
-    const daysInDec = 31;
-
     const calendar = document.getElementById("calendar");
 
-    for (let day = 1; day <= daysInDec; day++) {
-      const dayDiv = document.createElement("div");
-      const dateStr = `12-${String(day).padStart(2,'0')}`;
+    let currentMonth = "nov"; // default tab
 
-      // Basic day styling
-      dayDiv.className = "day border rounded-lg p-4 flex flex-col items-center justify-center transition-all duration-300 hover:scale-105 cursor-pointer relative";
-      dayDiv.innerHTML = `
-        <span class="text-lg font-semibold">${day}</span>
-        <span class="text-sm mt-1">${dateStr}</span>
-      `;
+    function renderCalendar(monthKey) {
+      calendar.innerHTML = ""; // clear
 
-      // Highlight today
-      if (today.getMonth() === 11 && today.getDate() === day) {
-        dayDiv.classList.add("bg-yellow-200", "border-yellow-400");
+      const { month, days } = months[monthKey];
+
+      for (let day = 1; day <= days; day++) {
+        const dayDiv = document.createElement("div");
+        const dateStr = `${String(month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+
+        dayDiv.className = "day border rounded-lg p-4 flex flex-col items-center justify-center transition-all duration-300 hover:scale-105 cursor-pointer relative bg-gray-800 border-gray-700";
+        dayDiv.innerHTML = `
+          <span class="text-lg font-semibold">${day}</span>
+          <span class="text-sm mt-1">${dateStr}</span>
+        `;
+
+        // Highlight today
+        if (today.getMonth() === month && today.getDate() === day) {
+          dayDiv.classList.add("bg-yellow-600", "border-yellow-400");
+        }
+
+        // Highlight special days
+        if (specialDays[dateStr]) {
+          const badge = document.createElement("span");
+          badge.className = "absolute top-1 right-1 bg-red-500 text-white text-xs px-1 rounded";
+          badge.textContent = specialDays[dateStr];
+          dayDiv.appendChild(badge);
+        }
+
+        // Check off on click
+        dayDiv.addEventListener("click", () => {
+          dayDiv.classList.toggle("bg-green-600");
+          dayDiv.classList.toggle("line-through");
+        });
+
+        calendar.appendChild(dayDiv);
       }
-
-      // Highlight special days
-      if (specialDays[dateStr]) {
-        const badge = document.createElement("span");
-        badge.className = "absolute top-1 right-1 bg-red-500 text-white text-xs px-1 rounded";
-        badge.textContent = specialDays[dateStr];
-        dayDiv.appendChild(badge);
-      }
-
-      // Check off on click
-      dayDiv.addEventListener("click", () => {
-        dayDiv.classList.toggle("bg-green-200");
-        dayDiv.classList.toggle("line-through");
-      });
-
-      calendar.appendChild(dayDiv);
     }
+
+    // Initial render
+    renderCalendar(currentMonth);
+
+    // Tab buttons
+    document.getElementById("nov-tab").addEventListener("click", () => {
+      currentMonth = "nov";
+      renderCalendar(currentMonth);
+    });
+    document.getElementById("dec-tab").addEventListener("click", () => {
+      currentMonth = "dec";
+      renderCalendar(currentMonth);
+    });
   </script>
 
 </body>
